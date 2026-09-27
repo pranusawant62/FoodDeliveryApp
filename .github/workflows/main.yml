@@ -1,12 +1,23 @@
+
 name: Food Delivery CI/CD
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
 
 jobs:
-  build-test-package-deploy:
+  build-test-package:
     runs-on: ubuntu-latest
 
     steps:
@@ -15,20 +26,37 @@ jobs:
 
       - name: Build Application
         run: |
-          mkdir build
+          mkdir -p build
           cp index.html build/
           echo "Build successful"
 
       - name: Test Application
         run: |
-          test -f build/index.html
+          test -s build/index.html
           echo "Test passed"
 
       - name: Package Application
-        run: |
-          zip -r FoodDeliveryApp.zip build/
-          echo "Package created"
+        run: zip -r FoodDeliveryApp.zip build/
 
-      - name: Deploy Application
-        run: |
-          echo "Deployment stage completed"
+      - name: Save Package Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FoodDeliveryApp-package
+          path: FoodDeliveryApp.zip
+
+      - name: Prepare Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build
+
+  deploy:
+    needs: build-test-package
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
